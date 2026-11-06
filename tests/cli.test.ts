@@ -1,4 +1,6 @@
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
+import { createInterface } from "node:readline";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -72,4 +74,57 @@ test("同一 PR 只提交一次，失败后继续，并返回非零状态", () =
     `pr review ${FIRST_PR} --approve`,
     `pr review ${SECOND_PR} --approve`,
   ]);
+});
+
+test("本地界面只接受本次页面的请求，并返回每条审批结果", async () => {
+  const cli = spawn(process.execPath, [CLI_PATH, "ui"], {
+    env: { PATH: fixtureDir, NPR_CALL_LOG: callLog, NPR_FAIL_URL: SECOND_PR },
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  const closed = once(cli, "close");
+  const lines = createInterface({ input: cli.stdout });
+
+  try {
+    let origin = "";
+    for await (const line of lines) {
+      const match = /http:\/\/127\.0\.0\.1:\d+/.exec(line);
+      if (match) {
+        origin = match[0];
+        break;
+      }
+    }
+    expect(origin).toBeTruthy();
+    const page = await fetch(origin, { signal: AbortSignal.timeout(3000) });
+    const html = await page.text();
+    const session = /<script nonce="([a-f0-9]+)"/.exec(html)?.[1] ?? "";
+    expect(html).toContain("@reviewer");
+    expect(session).toBeTruthy();
+
+    const rejected = await fetch(origin + "/review", {
+      method: "POST",
+      headers: { Origin: "https://unrelated.test", "X-NPR-Session": session },
+      body: FIRST_PR,
+      signal: AbortSignal.timeout(3000),
+    });
+    expect(rejected.status).toBe(403);
+    expect(readFileSync(callLog, "utf8")).not.toContain("pr review");
+
+    const accepted = await fetch(origin + "/review", {
+      method: "POST",
+      headers: { Origin: origin, "X-NPR-Session": session },
+      body: `${FIRST_PR}\n${FIRST_PR}/files ${SECOND_PR}`,
+      signal: AbortSignal.timeout(3000),
+    });
+    expect(accepted.status).toBe(200);
+    expect(await accepted.json()).toEqual({
+      results: [
+        { url: FIRST_PR, error: null },
+        { url: SECOND_PR, error: "review forbidden" },
+      ],
+    });
+  } finally {
+    lines.close();
+    cli.kill();
+    await closed;
+  }
 });

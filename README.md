@@ -1,31 +1,45 @@
 # npr
 
-用当前 GitHub 账号批量审批 Pull Request。支持 `github.com`。
+用当前 GitHub 账号批量审批 Pull Request。支持本地浏览器界面和终端命令，适用于 `github.com`。
 
-需要 Node.js 22+ 和 [GitHub CLI（gh）](https://cli.github.com/)。macOS 可用 `brew install gh` 安装 GitHub CLI。
+![npr 本地审批界面，显示当前账号、链接输入框和批量审批结果](docs/npr-ui.png)
 
-从 GitHub Release 安装。
+## 安装
+
+需要 Node.js 22+ 和 [GitHub CLI（gh）](https://cli.github.com/)。macOS 可运行 `brew install gh`。
 
 ```sh
-npm install -g https://github.com/Kelier/pr-cli/releases/download/v0.1.0/npr-review-cli-0.1.0.tgz
+npm install -g https://github.com/Kelier/pr-cli/releases/download/v0.2.0/npr-review-cli-0.2.0.tgz
 ```
 
-也可以在本地项目目录构建并安装。
+## 在浏览器中审批
 
 ```sh
-npm ci
-npm pack
-npm install -g ./npr-review-cli-0.1.0.tgz
+npr ui
 ```
 
-首次运行 `npr`，按终端提示在浏览器完成 GitHub 设备授权。成功后终端会显示 `鉴权成功：@用户名`。登录由 `gh` 保存，下次运行会复用该身份。如果已用 `gh` 登录，则直接验证并显示当前账号；可用 `gh auth switch --hostname github.com` 切换已登录的账号。
+在输入框粘贴一个或多个 PR 链接，用空格或换行分隔。**粘贴后会立即提交正式的 Approve。** 手动输入链接后也可以点「提交审批」。
+
+页面显示当前审批账号和每条结果。点击结果中的 PR 编号可打开对应页面。可以连续处理多批，在启动界面的终端按 Ctrl+C 关闭。
+
+如果 `gh` 已登录，`npr` 会复用当前账号。首次使用时按终端提示完成 GitHub 浏览器授权。可用 `npr` 验证身份，或用 `gh auth switch --hostname github.com` 切换账号。
+
+## 在终端中审批
 
 ```sh
-npr
 npr list https://github.com/OWNER/REPO/pull/123
 npr list https://github.com/OWNER/REPO/pull/123 https://github.com/OTHER/REPO/pull/456
 ```
 
-`list` 会立即向 GitHub 提交正式的 Approve 审查。GitHub 根据仓库的权限和分支保护规则决定该审批是否计入必需审批数。命令会在提交前验证整批链接、合并重复项；单条被 GitHub 拒绝时会继续处理剩余链接，并在最后以非零状态退出。
+两种方式都会先校验整批链接并去重。单条审批失败时，会继续处理其余 PR。GitHub 根据仓库权限和分支保护规则决定审批是否计入必需审批数。
 
-运行 `npm test` 可用模拟的 GitHub CLI 验证命令，无需登录或修改真实 PR。
+## 本地开发
+
+```sh
+npm ci
+npm test
+npm pack
+npm install -g ./npr-review-cli-0.2.0.tgz
+```
+
+测试使用模拟的 GitHub CLI，无需登录或修改真实 PR。

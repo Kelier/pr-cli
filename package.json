@@ -1,6 +1,6 @@
 {
   "name": "npr-review-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Authenticate with GitHub and approve pull requests in batches",
   "bin": {
     "npr": "dist/cli.js"
